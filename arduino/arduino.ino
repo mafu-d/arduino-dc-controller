@@ -24,6 +24,7 @@ int lastHeartBeat = 0;
 char received;
  
 void setup() {
+  Serial.print("Starting");
   // Initializing Serial
   Bluetooth.begin(9600);
   //inputString.reserve(4); 
@@ -88,12 +89,12 @@ void loop() {
     }
 
     // Change direction when stopped
-    if (speed === 0 && changeForwards !== forwards) {
+    if (speed == 0 && changeForwards != forwards) {
       forwards = changeForwards;
     }
 
     // Cut out if no recent heartbeat
-    if (millis() - lastHeartBeat > 10000) {
+    if (millis() - lastHeartBeat > 10000 && speed != 0) {
       speed = 0;
       power = 0;
     }
@@ -102,5 +103,6 @@ void loop() {
     digitalWrite(L298_IN1, forwards ? HIGH : LOW);
     digitalWrite(L298_IN2, forwards ? LOW : HIGH);
     analogWrite(L298_ENA, (int)speed);
+//    Serial.print(speed);
   }
 }
