@@ -14,9 +14,9 @@ SoftwareSerial Bluetooth(12, 13); // RX, TX
 // VARIABLES //
 float locoSpeed = 0.0;
 int locoPower = 0;
-float acceleration = 0.02;
-float deceleration = 0.05;
-unsigned int minPower = 10;
+float acceleration = 0.15;
+float deceleration = 0.2;
+unsigned int minPower = 20;
 unsigned int maxPower = 255;
 bool forwards = true;
 bool changeForwards = true;
@@ -145,9 +145,18 @@ void loop() {
   }
 
   // Set desiredPower
-  digitalWrite(L298_IN1, forwards ? HIGH : LOW);
-  digitalWrite(L298_IN2, forwards ? LOW : HIGH);
-  analogWrite(L298_ENA, locoSpeed);
+  if (forwards) {
+    digitalWrite(L298_IN1, HIGH);
+    digitalWrite(L298_IN2, LOW);
+  analogWrite(L298_ENA, 255 - locoSpeed);
+  } else {
+    digitalWrite(L298_IN1, LOW);
+    digitalWrite(L298_IN2, HIGH);
+      analogWrite(L298_ENA, locoSpeed);
+
+  }
+//  digitalWrite(L298_IN1, forwards ? HIGH : LOW);
+//  digitalWrite(L298_IN2, forwards ? LOW : HIGH);
 
   // Pause a bit
   delay(100);
