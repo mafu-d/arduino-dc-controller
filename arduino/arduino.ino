@@ -12,22 +12,22 @@ SoftwareSerial Bluetooth(12, 13); // RX, TX
 #define L298_IN2 5
 
 // VARIABLES //
-float speed = 0;
-int power = 0;
-float acceleration = 0.1;
-float deceleration = 0.2;
-int minPower = 10;
-int maxPower = 255;
+float locoSpeed = 0.0;
+int locoPower = 0;
+float acceleration = 0.02;
+float deceleration = 0.05;
+unsigned int minPower = 10;
+unsigned int maxPower = 255;
 bool forwards = true;
 bool changeForwards = true;
-int lastHeartBeat = 0;
-char received;
+unsigned int lastHeartBeat = 0;
+String received = "";
  
 void setup() {
-  Serial.print("Starting");
   // Initializing Serial
   Bluetooth.begin(9600);
-  //inputString.reserve(4); 
+  Serial.begin(4800);
+  Serial.println("Starting");
 
   // Initializing Motor-Driver
   pinMode(L298_ENA, OUTPUT); 
@@ -41,68 +41,114 @@ void setup() {
   // Set default direction to FORWARD
   digitalWrite(L298_IN1, HIGH);
   digitalWrite(L298_IN2, LOW);
+
+  Serial.println("Ready");
+}
+
+// Process the Bluetooth buffer and get the full instruction
+String getInstruction() {
+  String instruction = "";
+  bool complete = false;
+  char buffer;
+  int cycles = 0;
+  while (!complete && cycles < 8) {
+    delay(10); // Allow time for buffer to refill
+    buffer = Bluetooth.read();
+    if (buffer == '>') {
+      Serial.print("Received: ");
+      Serial.println(instruction);
+      return instruction;
+    }
+    instruction += buffer;
+    cycles++;
+  }
+}
+
+// Update the loco state depending on the instruction sent
+void handleInstruction(String instruction) {
+  if (instruction == "X") {
+    // Emergency stop
+    Serial.println("Emergency stop");
+    locoSpeed = 0;
+    locoPower = 0;
+    return;
+  }
+  if (instruction == "F") {
+    // Change direction to forwards
+    Serial.println("Forwards");
+    changeForwards = true;
+    return;
+  }
+  if (instruction == "B") {
+    // Change direction to backwards
+    Serial.println("Backwards");
+    changeForwards = false;
+    return;
+  }
+  if (received == "H") {
+    // Heartbeat
+    lastHeartBeat = millis() / 1000;
+    Serial.print("Heartbeat ");
+    Serial.println(lastHeartBeat);
+    Serial.print("Speed: ");
+    Serial.println(locoSpeed);
+    Serial.print("Power: ");
+    Serial.println(locoPower);
+    return;
+  }
+  int in2 = instruction.toInt();
+  if (in2 >= -10 && in2 <= 10) {
+    // Handle desiredPower changes
+    locoPower = in2;
+    return;
+  }
 }
 
 void loop() {
-  received = false;
-  if (Bluetooth.available()) {
-    received = Bluetooth.read();
+  // Check whether there is an incoming instruction
+  received = "";
+  if (Bluetooth.available() && Bluetooth.read() == '<') {
+    received = getInstruction();
   }
 
-  if (received) {
-    switch (received) {
-      case 'X':
-        // Emergency stop
-        speed = 0;
-        power = 0;
-        break;
-      case 'F':
-        // Change direction to forwards
-        changeForwards = true;
-        break;
-      case 'B':
-        // Change direction to backwards
-        changeForwards = false;
-        break;
-      case 'H':
-        // Heartbeat
-        lastHeartBeat = millis();
-      default:
-        // Handle power changes
-        if ((int)received >= -10 && (int)received <= 10) {
-          power = (int)received;
-        }
-    }
-
-    // Change speed
-    if (power > 0 && speed < maxPower) {
-      speed += acceleration;
-      if (speed < minPower) {
-        speed = minPower;
-      }
-    }
-    if (power < 0 && speed > 0) {
-      speed -= deceleration;
-      if (speed < minPower) {
-        speed = 0;
-      }
-    }
-
-    // Change direction when stopped
-    if (speed == 0 && changeForwards != forwards) {
-      forwards = changeForwards;
-    }
-
-    // Cut out if no recent heartbeat
-    if (millis() - lastHeartBeat > 10000 && speed != 0) {
-      speed = 0;
-      power = 0;
-    }
-
-    // Set power
-    digitalWrite(L298_IN1, forwards ? HIGH : LOW);
-    digitalWrite(L298_IN2, forwards ? LOW : HIGH);
-    analogWrite(L298_ENA, (int)speed);
-//    Serial.print(speed);
+  // If there is an instruction, do it
+  if (received != "") {
+    handleInstruction(received);
   }
+  
+  // Change speed of loco
+  if (locoPower > 0 && locoSpeed < maxPower) {
+    locoSpeed += acceleration * locoPower;
+    if (locoSpeed < minPower) {
+      locoSpeed = minPower;
+    }
+  }
+  if (locoPower < 0 && locoSpeed > minPower) {
+    locoSpeed += deceleration * locoPower;
+    if (locoSpeed < minPower) {
+      locoSpeed = 0;
+    }
+  }
+
+  // Change direction when stopped
+  if (locoSpeed == 0 && changeForwards != forwards) {
+    forwards = changeForwards;
+    Serial.println("Changed direction");
+  }
+
+  // Cut out if no recent heartbeat
+  if ((millis() / 1000 - lastHeartBeat > 10) && (locoSpeed > 0)) {
+    locoSpeed = 0;
+    locoPower = 0;
+    Serial.print("Auto cutout: ");
+    Serial.println(lastHeartBeat);
+  }
+
+  // Set desiredPower
+  digitalWrite(L298_IN1, forwards ? HIGH : LOW);
+  digitalWrite(L298_IN2, forwards ? LOW : HIGH);
+  analogWrite(L298_ENA, locoSpeed);
+
+  // Pause a bit
+  delay(100);
 }
