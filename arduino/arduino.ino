@@ -14,9 +14,9 @@ SoftwareSerial Bluetooth(12, 13); // RX, TX
 // VARIABLES //
 float locoSpeed = 0.0;
 int locoPower = 0;
-float acceleration = 0.15;
+float acceleration = 0.1;
 float deceleration = 0.2;
-unsigned int minPower = 20;
+unsigned int minPower = 30;
 unsigned int maxPower = 255;
 bool forwards = true;
 bool changeForwards = true;
@@ -36,7 +36,7 @@ void setup() {
 
   // Set PWM frequency for D9 & D10
   // Timer 1 divisor to 256 for PWM frequency of 122.55 Hz
-  TCCR1B = TCCR1B & B11111000 | B00000100; 
+  TCCR1B = TCCR1B & B11111000 | 0x04; 
 
   // Set default direction to FORWARD
   digitalWrite(L298_IN1, HIGH);
@@ -148,12 +148,11 @@ void loop() {
   if (forwards) {
     digitalWrite(L298_IN1, HIGH);
     digitalWrite(L298_IN2, LOW);
-  analogWrite(L298_ENA, 255 - locoSpeed);
+    analogWrite(L298_ENA, locoSpeed);
   } else {
     digitalWrite(L298_IN1, LOW);
     digitalWrite(L298_IN2, HIGH);
-      analogWrite(L298_ENA, locoSpeed);
-
+    analogWrite(L298_ENA, locoSpeed);
   }
 //  digitalWrite(L298_IN1, forwards ? HIGH : LOW);
 //  digitalWrite(L298_IN2, forwards ? LOW : HIGH);
